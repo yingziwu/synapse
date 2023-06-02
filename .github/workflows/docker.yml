@@ -5,7 +5,7 @@ name: Build docker images
 on:
   push:
     tags: ["v*"]
-    branches: [ master, main, develop ]
+    branches: [master, main, develop]
   workflow_dispatch:
 
 permissions:
@@ -16,12 +16,6 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Set up QEMU
-        id: qemu
-        uses: docker/setup-qemu-action@v2
-        with:
-          platforms: arm64
-
       - name: Set up Docker Buildx
         id: buildx
         uses: docker/setup-buildx-action@v2
@@ -58,9 +52,4 @@ jobs:
           labels: "gitsha1=${{ github.sha }}"
           tags: "${{ steps.set-tag.outputs.tags }}"
           file: "docker/Dockerfile"
-          platforms: linux/amd64,linux/arm64
-
-          # arm64 builds OOM without the git fetch setting. c.f.
-          # https://github.com/rust-lang/cargo/issues/10583
-          build-args: |
-            CARGO_NET_GIT_FETCH_WITH_CLI=true
+          platforms: linux/amd64
