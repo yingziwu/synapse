@@ -66,9 +66,6 @@ WORKDIR /synapse
 COPY pyproject.toml poetry.lock /synapse/
 
 
-# Patch for pypy
-RUN sed -i -e '302s|"pympler"|#"pympler"|' pyproject.toml
-
 # Install custom extensions
 RUN /root/.local/bin/poetry add --lock -- \ 
   "git+https://github.com/devture/matrix-synapse-shared-secret-auth#master" \
@@ -193,6 +190,11 @@ RUN \
 COPY --from=builder /install /opt/pypy
 COPY ./docker/start.py /start.py
 COPY ./docker/conf /conf
+
+
+# Patch for pypy
+RUN pip uninstall -y psycopg2 pympler
+
 
 EXPOSE 8008/tcp 8009/tcp 8448/tcp
 
