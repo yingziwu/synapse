@@ -20,14 +20,14 @@
 # `poetry export | pip install -r /dev/stdin`, but beware: we have experienced bugs in
 # in `poetry export` in the past.
 
-ARG PYTHON_VERSION=3.11
+ARG PYTHON_VERSION=3.9
 
 ###
 ### Stage 0: generate requirements.txt
 ###
 # We hardcode the use of Debian bullseye here because this could change upstream
 # and other Dockerfiles used for testing are expecting bullseye.
-FROM docker.io/python:${PYTHON_VERSION}-slim-bullseye as requirements
+FROM pypy:${PYTHON_VERSION}-slim-bullseye as requirements
 
 # RUN --mount is specific to buildkit and is documented at
 # https://github.com/moby/buildkit/blob/master/frontend/dockerfile/docs/syntax.md#build-mounts-run---mount.
@@ -66,6 +66,15 @@ WORKDIR /synapse
 COPY pyproject.toml poetry.lock /synapse/
 
 
+# Patch for pypy
+RUN sed -i -e '302s|"pympler"|#"pympler"|' pyproject.toml
+
+# Install custom extensions
+RUN /root/.local/bin/poetry add --lock -- \ 
+  "git+https://github.com/devture/matrix-synapse-shared-secret-auth#master" \
+  "git+https://github.com/matrix-org/mjolnir.git#main&subdirectory=synapse_antispam"
+
+
 # If specified, we won't verify the hashes of dependencies.
 # This is only needed if the hashes of dependencies cannot be checked for some
 # reason, such as when a git repository is used directly as a dependency.
@@ -79,7 +88,7 @@ ARG TEST_ONLY_IGNORE_POETRY_LOCKFILE
 # Otherwise, just create an empty requirements file so that the Dockerfile can
 # proceed.
 RUN if [ -z "$TEST_ONLY_IGNORE_POETRY_LOCKFILE" ]; then \
-  /root/.local/bin/poetry export --extras all -o /synapse/requirements.txt ${TEST_ONLY_SKIP_DEP_HASH_VERIFICATION:+--without-hashes}; \
+  /root/.local/bin/poetry export --without-hashes --extras all -o /synapse/requirements.txt ${TEST_ONLY_SKIP_DEP_HASH_VERIFICATION:+--without-hashes}; \
   else \
   touch /synapse/requirements.txt; \
   fi
@@ -87,7 +96,7 @@ RUN if [ -z "$TEST_ONLY_IGNORE_POETRY_LOCKFILE" ]; then \
 ###
 ### Stage 1: builder
 ###
-FROM docker.io/python:${PYTHON_VERSION}-slim-bullseye as builder
+FROM pypy:${PYTHON_VERSION}-slim-bullseye as builder
 
 # install the OS build deps
 RUN \
@@ -158,7 +167,7 @@ RUN --mount=type=cache,target=/synapse/target,sharing=locked \
 ### Stage 2: runtime
 ###
 
-FROM docker.io/python:${PYTHON_VERSION}-slim-bullseye
+FROM pypy:${PYTHON_VERSION}-slim-bullseye
 
 LABEL org.opencontainers.image.url='https://matrix.org/docs/projects/server/synapse'
 LABEL org.opencontainers.image.documentation='https://github.com/matrix-org/synapse/blob/master/docker/README.md'
@@ -181,7 +190,7 @@ RUN \
   openssl \
   && rm -rf /var/lib/apt/lists/*
 
-COPY --from=builder /install /usr/local
+COPY --from=builder /install /opt/pypy
 COPY ./docker/start.py /start.py
 COPY ./docker/conf /conf
 

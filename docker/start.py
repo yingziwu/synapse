@@ -1,4 +1,4 @@
-#!/usr/local/bin/python
+#!/opt/pypy/bin/python
 
 import codecs
 import glob
