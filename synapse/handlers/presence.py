@@ -110,6 +110,7 @@ from synapse.replication.http.streams import ReplicationGetStreamUpdates
 from synapse.replication.tcp.commands import ClearUserSyncsCommand
 from synapse.replication.tcp.streams import PresenceFederationStream, PresenceStream
 from synapse.storage.databases.main import DataStore
+from synapse.storage.databases.main.state_deltas import StateDelta
 from synapse.streams import EventSource
 from synapse.types import (
     JsonDict,
@@ -401,9 +402,9 @@ class BasePresenceHandler(abc.ABC):
             states,
         )
 
-        for destination, host_states in hosts_to_states.items():
+        for destinations, host_states in hosts_to_states:
             await self._federation.send_presence_to_destinations(
-                host_states, [destination]
+                host_states, destinations
             )
 
     async def send_full_presence_to_users(self, user_ids: StrCollection) -> None:
@@ -1000,9 +1001,9 @@ class PresenceHandler(BasePresenceHandler):
                     list(to_federation_ping.values()),
                 )
 
-                for destination, states in hosts_to_states.items():
+                for destinations, states in hosts_to_states:
                     await self._federation_queue.send_presence_to_destinations(
-                        states, [destination]
+                        states, destinations
                     )
 
     @wrap_as_background_process("handle_presence_timeouts")
@@ -1499,9 +1500,9 @@ class PresenceHandler(BasePresenceHandler):
                 # We may get multiple deltas for different rooms, but we want to
                 # handle them on a room by room basis, so we batch them up by
                 # room.
-                deltas_by_room: Dict[str, List[JsonDict]] = {}
+                deltas_by_room: Dict[str, List[StateDelta]] = {}
                 for delta in deltas:
-                    deltas_by_room.setdefault(delta["room_id"], []).append(delta)
+                    deltas_by_room.setdefault(delta.room_id, []).append(delta)
 
                 for room_id, deltas_for_room in deltas_by_room.items():
                     await self._handle_state_delta(room_id, deltas_for_room)
@@ -1513,7 +1514,7 @@ class PresenceHandler(BasePresenceHandler):
                     max_pos
                 )
 
-    async def _handle_state_delta(self, room_id: str, deltas: List[JsonDict]) -> None:
+    async def _handle_state_delta(self, room_id: str, deltas: List[StateDelta]) -> None:
         """Process current state deltas for the room to find new joins that need
         to be handled.
         """
@@ -1524,31 +1525,30 @@ class PresenceHandler(BasePresenceHandler):
         newly_joined_users = set()
 
         for delta in deltas:
-            assert room_id == delta["room_id"]
+            assert room_id == delta.room_id
 
-            typ = delta["type"]
-            state_key = delta["state_key"]
-            event_id = delta["event_id"]
-            prev_event_id = delta["prev_event_id"]
-
-            logger.debug("Handling: %r %r, %s", typ, state_key, event_id)
+            logger.debug(
+                "Handling: %r %r, %s", delta.event_type, delta.state_key, delta.event_id
+            )
 
             # Drop any event that isn't a membership join
-            if typ != EventTypes.Member:
+            if delta.event_type != EventTypes.Member:
                 continue
 
-            if event_id is None:
+            if delta.event_id is None:
                 # state has been deleted, so this is not a join. We only care about
                 # joins.
                 continue
 
-            event = await self.store.get_event(event_id, allow_none=True)
+            event = await self.store.get_event(delta.event_id, allow_none=True)
             if not event or event.content.get("membership") != Membership.JOIN:
                 # We only care about joins
                 continue
 
-            if prev_event_id:
-                prev_event = await self.store.get_event(prev_event_id, allow_none=True)
+            if delta.prev_event_id:
+                prev_event = await self.store.get_event(
+                    delta.prev_event_id, allow_none=True
+                )
                 if (
                     prev_event
                     and prev_event.content.get("membership") == Membership.JOIN
@@ -1556,7 +1556,7 @@ class PresenceHandler(BasePresenceHandler):
                     # Ignore changes to join events.
                     continue
 
-            newly_joined_users.add(state_key)
+            newly_joined_users.add(delta.state_key)
 
         if not newly_joined_users:
             # If nobody has joined then there's nothing to do.
@@ -2276,7 +2276,7 @@ async def get_interested_remotes(
     store: DataStore,
     presence_router: PresenceRouter,
     states: List[UserPresenceState],
-) -> Dict[str, Set[UserPresenceState]]:
+) -> List[Tuple[StrCollection, Collection[UserPresenceState]]]:
     """Given a list of presence states figure out which remote servers
     should be sent which.
 
@@ -2290,23 +2290,26 @@ async def get_interested_remotes(
     Returns:
         A map from destinations to presence states to send to that destination.
     """
-    hosts_and_states: Dict[str, Set[UserPresenceState]] = {}
+    hosts_and_states: List[Tuple[StrCollection, Collection[UserPresenceState]]] = []
 
     # First we look up the rooms each user is in (as well as any explicit
     # subscriptions), then for each distinct room we look up the remote
     # hosts in those rooms.
-    room_ids_to_states, users_to_states = await get_interested_parties(
-        store, presence_router, states
-    )
+    for state in states:
+        room_ids = await store.get_rooms_for_user(state.user_id)
+        hosts: Set[str] = set()
+        for room_id in room_ids:
+            room_hosts = await store.get_current_hosts_in_room(room_id)
+            hosts.update(room_hosts)
+        hosts_and_states.append((hosts, [state]))
 
-    for room_id, states in room_ids_to_states.items():
-        hosts = await store.get_current_hosts_in_room(room_id)
-        for host in hosts:
-            hosts_and_states.setdefault(host, set()).update(states)
+    # Ask a presence routing module for any additional parties if one
+    # is loaded.
+    router_users_to_states = await presence_router.get_users_for_states(states)
 
-    for user_id, states in users_to_states.items():
+    for user_id, user_states in router_users_to_states.items():
         host = get_domain_from_id(user_id)
-        hosts_and_states.setdefault(host, set()).update(states)
+        hosts_and_states.append(([host], user_states))
 
     return hosts_and_states
 

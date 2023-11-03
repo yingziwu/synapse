@@ -1,4 +1,4 @@
-# Copyright 2019 The Matrix.org Foundation C.I.C.
+# Copyright 2023 The Matrix.org Foundation C.I.C.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,24 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from pyperf import perf_counter
+from typing import List
 
-from synapse.types import ISynapseReactor
-from synapse.util.caches.lrucache import LruCache
-
-
-async def main(reactor: ISynapseReactor, loops: int) -> float:
-    """
-    Benchmark `loops` number of insertions into LruCache where half of them are
-    evicted.
-    """
-    cache: LruCache[int, bool] = LruCache(loops // 2)
-
-    start = perf_counter()
-
-    for i in range(loops):
-        cache[i] = True
-
-    end = perf_counter() - start
-
-    return end
+class ServerAclEvaluator:
+    def __init__(
+        self, allow_ip_literals: bool, allow: List[str], deny: List[str]
+    ) -> None: ...
+    def server_matches_acl_event(self, server_name: str) -> bool: ...

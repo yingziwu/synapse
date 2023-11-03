@@ -1,4 +1,4 @@
-# Copyright 2019 The Matrix.org Foundation C.I.C.
+# Copyright 2023 Maxwell G <maxwell@gtmx.me>
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,24 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from pyperf import perf_counter
+from packaging.version import Version
 
-from synapse.types import ISynapseReactor
-from synapse.util.caches.lrucache import LruCache
+try:
+    from pydantic import __version__ as pydantic_version
+except ImportError:
+    import importlib.metadata
 
+    pydantic_version = importlib.metadata.version("pydantic")
 
-async def main(reactor: ISynapseReactor, loops: int) -> float:
-    """
-    Benchmark `loops` number of insertions into LruCache where half of them are
-    evicted.
-    """
-    cache: LruCache[int, bool] = LruCache(loops // 2)
+HAS_PYDANTIC_V2: bool = Version(pydantic_version).major == 2
 
-    start = perf_counter()
-
-    for i in range(loops):
-        cache[i] = True
-
-    end = perf_counter() - start
-
-    return end
+__all__ = ("HAS_PYDANTIC_V2",)

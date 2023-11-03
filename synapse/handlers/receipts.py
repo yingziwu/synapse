@@ -19,6 +19,7 @@ from synapse.appservice import ApplicationService
 from synapse.streams import EventSource
 from synapse.types import (
     JsonDict,
+    JsonMapping,
     ReadReceipt,
     StreamKeyType,
     UserID,
@@ -129,11 +130,10 @@ class ReceiptsHandler:
 
     async def _handle_new_receipts(self, receipts: List[ReadReceipt]) -> bool:
         """Takes a list of receipts, stores them and informs the notifier."""
-        min_batch_id: Optional[int] = None
-        max_batch_id: Optional[int] = None
 
+        receipts_persisted: List[ReadReceipt] = []
         for receipt in receipts:
-            res = await self.store.insert_receipt(
+            stream_id = await self.store.insert_receipt(
                 receipt.room_id,
                 receipt.receipt_type,
                 receipt.user_id,
@@ -142,30 +142,26 @@ class ReceiptsHandler:
                 receipt.data,
             )
 
-            if not res:
-                # res will be None if this receipt is 'old'
+            if stream_id is None:
+                # stream_id will be None if this receipt is 'old'
                 continue
 
-            stream_id, max_persisted_id = res
+            receipts_persisted.append(receipt)
 
-            if min_batch_id is None or stream_id < min_batch_id:
-                min_batch_id = stream_id
-            if max_batch_id is None or max_persisted_id > max_batch_id:
-                max_batch_id = max_persisted_id
-
-        # Either both of these should be None or neither.
-        if min_batch_id is None or max_batch_id is None:
+        if not receipts_persisted:
             # no new receipts
             return False
 
-        affected_room_ids = list({r.room_id for r in receipts})
+        max_batch_id = self.store.get_max_receipt_stream_id()
+
+        affected_room_ids = list({r.room_id for r in receipts_persisted})
 
         self.notifier.on_new_event(
             StreamKeyType.RECEIPT, max_batch_id, rooms=affected_room_ids
         )
         # Note that the min here shouldn't be relied upon to be accurate.
         await self.hs.get_pusherpool().on_new_receipts(
-            min_batch_id, max_batch_id, affected_room_ids
+            {r.user_id for r in receipts_persisted}
         )
 
         return True
@@ -204,15 +200,15 @@ class ReceiptsHandler:
             await self.federation_sender.send_read_receipt(receipt)
 
 
-class ReceiptEventSource(EventSource[int, JsonDict]):
+class ReceiptEventSource(EventSource[int, JsonMapping]):
     def __init__(self, hs: "HomeServer"):
         self.store = hs.get_datastores().main
         self.config = hs.config
 
     @staticmethod
     def filter_out_private_receipts(
-        rooms: Sequence[JsonDict], user_id: str
-    ) -> List[JsonDict]:
+        rooms: Sequence[JsonMapping], user_id: str
+    ) -> List[JsonMapping]:
         """
         Filters a list of serialized receipts (as returned by /sync and /initialSync)
         and removes private read receipts of other users.
@@ -229,7 +225,7 @@ class ReceiptEventSource(EventSource[int, JsonDict]):
             The same as rooms, but filtered.
         """
 
-        result = []
+        result: List[JsonMapping] = []
 
         # Iterate through each room's receipt content.
         for room in rooms:
@@ -282,7 +278,7 @@ class ReceiptEventSource(EventSource[int, JsonDict]):
         room_ids: Iterable[str],
         is_guest: bool,
         explicit_room_id: Optional[str] = None,
-    ) -> Tuple[List[JsonDict], int]:
+    ) -> Tuple[List[JsonMapping], int]:
         from_key = int(from_key)
         to_key = self.get_current_key()
 
@@ -301,7 +297,7 @@ class ReceiptEventSource(EventSource[int, JsonDict]):
 
     async def get_new_events_as(
         self, from_key: int, to_key: int, service: ApplicationService
-    ) -> Tuple[List[JsonDict], int]:
+    ) -> Tuple[List[JsonMapping], int]:
         """Returns a set of new read receipt events that an appservice
         may be interested in.
 

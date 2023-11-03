@@ -24,6 +24,7 @@ from typing import (
     Dict,
     Iterable,
     List,
+    Mapping,
     MutableMapping,
     Optional,
     Set,
@@ -1583,16 +1584,19 @@ class EventsWorkerStore(SQLBaseStore):
         """Given a list of event ids, check if we have already processed and
         stored them as non outliers.
         """
-        rows = await self.db_pool.simple_select_many_batch(
-            table="events",
-            retcols=("event_id",),
-            column="event_id",
-            iterable=list(event_ids),
-            keyvalues={"outlier": False},
-            desc="have_events_in_timeline",
+        rows = cast(
+            List[Tuple[str]],
+            await self.db_pool.simple_select_many_batch(
+                table="events",
+                retcols=("event_id",),
+                column="event_id",
+                iterable=list(event_ids),
+                keyvalues={"outlier": False},
+                desc="have_events_in_timeline",
+            ),
         )
 
-        return {r["event_id"] for r in rows}
+        return {r[0] for r in rows}
 
     @trace
     @tag_args
@@ -1633,7 +1637,7 @@ class EventsWorkerStore(SQLBaseStore):
         self,
         room_id: str,
         event_ids: Collection[str],
-    ) -> Dict[str, bool]:
+    ) -> Mapping[str, bool]:
         """Helper for have_seen_events
 
         Returns:
@@ -2325,7 +2329,7 @@ class EventsWorkerStore(SQLBaseStore):
     @cachedList(cached_method_name="is_partial_state_event", list_name="event_ids")
     async def get_partial_state_events(
         self, event_ids: Collection[str]
-    ) -> Dict[str, bool]:
+    ) -> Mapping[str, bool]:
         """Checks which of the given events have partial state
 
         Args:
@@ -2335,15 +2339,18 @@ class EventsWorkerStore(SQLBaseStore):
             a dict mapping from event id to partial-stateness. We return True for
             any of the events which are unknown (or are outliers).
         """
-        result = await self.db_pool.simple_select_many_batch(
-            table="partial_state_events",
-            column="event_id",
-            iterable=event_ids,
-            retcols=["event_id"],
-            desc="get_partial_state_events",
+        result = cast(
+            List[Tuple[str]],
+            await self.db_pool.simple_select_many_batch(
+                table="partial_state_events",
+                column="event_id",
+                iterable=event_ids,
+                retcols=["event_id"],
+                desc="get_partial_state_events",
+            ),
         )
         # convert the result to a dict, to make @cachedList work
-        partial = {r["event_id"] for r in result}
+        partial = {r[0] for r in result}
         return {e_id: e_id in partial for e_id in event_ids}
 
     @cached()

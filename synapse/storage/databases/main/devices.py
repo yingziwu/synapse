@@ -55,7 +55,12 @@ from synapse.storage.util.id_generators import (
     AbstractStreamIdGenerator,
     StreamIdGenerator,
 )
-from synapse.types import JsonDict, StrCollection, get_verify_key_from_cross_signing_key
+from synapse.types import (
+    JsonDict,
+    JsonMapping,
+    StrCollection,
+    get_verify_key_from_cross_signing_key,
+)
 from synapse.util import json_decoder, json_encoder
 from synapse.util.caches.descriptors import cached, cachedList
 from synapse.util.caches.lrucache import LruCache
@@ -746,7 +751,7 @@ class DeviceWorkerStore(RoomMemberWorkerStore, EndToEndKeyWorkerStore):
     @cancellable
     async def get_user_devices_from_cache(
         self, user_ids: Set[str], user_and_device_ids: List[Tuple[str, str]]
-    ) -> Tuple[Set[str], Dict[str, Mapping[str, JsonDict]]]:
+    ) -> Tuple[Set[str], Dict[str, Mapping[str, JsonMapping]]]:
         """Get the devices (and keys if any) for remote users from the cache.
 
         Args:
@@ -766,13 +771,13 @@ class DeviceWorkerStore(RoomMemberWorkerStore, EndToEndKeyWorkerStore):
         user_ids_not_in_cache = unique_user_ids - user_ids_in_cache
 
         # First fetch all the users which all devices are to be returned.
-        results: Dict[str, Mapping[str, JsonDict]] = {}
+        results: Dict[str, Mapping[str, JsonMapping]] = {}
         for user_id in user_ids:
             if user_id in user_ids_in_cache:
                 results[user_id] = await self.get_cached_devices_for_user(user_id)
         # Then fetch all device-specific requests, but skip users we've already
         # fetched all devices for.
-        device_specific_results: Dict[str, Dict[str, JsonDict]] = {}
+        device_specific_results: Dict[str, Dict[str, JsonMapping]] = {}
         for user_id, device_id in user_and_device_ids:
             if user_id in user_ids_in_cache and user_id not in user_ids:
                 device = await self._get_cached_user_device(user_id, device_id)
@@ -801,7 +806,9 @@ class DeviceWorkerStore(RoomMemberWorkerStore, EndToEndKeyWorkerStore):
         return user_ids_in_cache
 
     @cached(num_args=2, tree=True)
-    async def _get_cached_user_device(self, user_id: str, device_id: str) -> JsonDict:
+    async def _get_cached_user_device(
+        self, user_id: str, device_id: str
+    ) -> JsonMapping:
         content = await self.db_pool.simple_select_one_onecol(
             table="device_lists_remote_cache",
             keyvalues={"user_id": user_id, "device_id": device_id},
@@ -811,7 +818,9 @@ class DeviceWorkerStore(RoomMemberWorkerStore, EndToEndKeyWorkerStore):
         return db_to_json(content)
 
     @cached()
-    async def get_cached_devices_for_user(self, user_id: str) -> Mapping[str, JsonDict]:
+    async def get_cached_devices_for_user(
+        self, user_id: str
+    ) -> Mapping[str, JsonMapping]:
         devices = await self.db_pool.simple_select_list(
             table="device_lists_remote_cache",
             keyvalues={"user_id": user_id},
@@ -1042,17 +1051,20 @@ class DeviceWorkerStore(RoomMemberWorkerStore, EndToEndKeyWorkerStore):
     )
     async def get_device_list_last_stream_id_for_remotes(
         self, user_ids: Iterable[str]
-    ) -> Dict[str, Optional[str]]:
-        rows = await self.db_pool.simple_select_many_batch(
-            table="device_lists_remote_extremeties",
-            column="user_id",
-            iterable=user_ids,
-            retcols=("user_id", "stream_id"),
-            desc="get_device_list_last_stream_id_for_remotes",
+    ) -> Mapping[str, Optional[str]]:
+        rows = cast(
+            List[Tuple[str, str]],
+            await self.db_pool.simple_select_many_batch(
+                table="device_lists_remote_extremeties",
+                column="user_id",
+                iterable=user_ids,
+                retcols=("user_id", "stream_id"),
+                desc="get_device_list_last_stream_id_for_remotes",
+            ),
         )
 
         results: Dict[str, Optional[str]] = {user_id: None for user_id in user_ids}
-        results.update({row["user_id"]: row["stream_id"] for row in rows})
+        results.update(rows)
 
         return results
 
@@ -1068,22 +1080,30 @@ class DeviceWorkerStore(RoomMemberWorkerStore, EndToEndKeyWorkerStore):
             The IDs of users whose device lists need resync.
         """
         if user_ids:
-            rows = await self.db_pool.simple_select_many_batch(
-                table="device_lists_remote_resync",
-                column="user_id",
-                iterable=user_ids,
-                retcols=("user_id",),
-                desc="get_user_ids_requiring_device_list_resync_with_iterable",
-            )
-        else:
-            rows = await self.db_pool.simple_select_list(
-                table="device_lists_remote_resync",
-                keyvalues=None,
-                retcols=("user_id",),
-                desc="get_user_ids_requiring_device_list_resync",
+            row_tuples = cast(
+                List[Tuple[str]],
+                await self.db_pool.simple_select_many_batch(
+                    table="device_lists_remote_resync",
+                    column="user_id",
+                    iterable=user_ids,
+                    retcols=("user_id",),
+                    desc="get_user_ids_requiring_device_list_resync_with_iterable",
+                ),
             )
 
-        return {row["user_id"] for row in rows}
+            return {row[0] for row in row_tuples}
+        else:
+            rows = cast(
+                List[Dict[str, str]],
+                await self.db_pool.simple_select_list(
+                    table="device_lists_remote_resync",
+                    keyvalues=None,
+                    retcols=("user_id",),
+                    desc="get_user_ids_requiring_device_list_resync",
+                ),
+            )
+
+            return {row["user_id"] for row in rows}
 
     async def mark_remote_users_device_caches_as_stale(
         self, user_ids: StrCollection
@@ -1404,13 +1424,13 @@ class DeviceWorkerStore(RoomMemberWorkerStore, EndToEndKeyWorkerStore):
 
         def get_devices_not_accessed_since_txn(
             txn: LoggingTransaction,
-        ) -> List[Dict[str, str]]:
+        ) -> List[Tuple[str, str]]:
             sql = """
                 SELECT user_id, device_id
                 FROM devices WHERE last_seen < ? AND hidden = FALSE
             """
             txn.execute(sql, (since_ms,))
-            return self.db_pool.cursor_to_dict(txn)
+            return cast(List[Tuple[str, str]], txn.fetchall())
 
         rows = await self.db_pool.runInteraction(
             "get_devices_not_accessed_since",
@@ -1418,11 +1438,11 @@ class DeviceWorkerStore(RoomMemberWorkerStore, EndToEndKeyWorkerStore):
         )
 
         devices: Dict[str, List[str]] = {}
-        for row in rows:
+        for user_id, device_id in rows:
             # Remote devices are never stale from our point of view.
-            if self.hs.is_mine_id(row["user_id"]):
-                user_devices = devices.setdefault(row["user_id"], [])
-                user_devices.append(row["device_id"])
+            if self.hs.is_mine_id(user_id):
+                user_devices = devices.setdefault(user_id, [])
+                user_devices.append(device_id)
 
         return devices
 

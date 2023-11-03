@@ -129,9 +129,7 @@ class ReplicationDataHandler:
             self.notifier.on_new_event(
                 StreamKeyType.RECEIPT, token, rooms=[row.room_id for row in rows]
             )
-            await self._pusher_pool.on_new_receipts(
-                token, token, {row.room_id for row in rows}
-            )
+            await self._pusher_pool.on_new_receipts({row.user_id for row in rows})
         elif stream_name == ToDeviceStream.NAME:
             entities = [row.entity for row in rows if row.entity.startswith("@")]
             if entities:
@@ -204,6 +202,12 @@ class ReplicationDataHandler:
                     # TODO retrieve the previous state, and exclude join -> join transitions
                     self.notifier.notify_user_joined_room(
                         row.data.event_id, row.data.room_id
+                    )
+
+                # If this is a server ACL event, clear the cache in the storage controller.
+                if row.data.type == EventTypes.ServerACL:
+                    self._state_storage_controller.get_server_acl_for_room.invalidate(
+                        (row.data.room_id,)
                     )
         elif stream_name == UnPartialStatedRoomStream.NAME:
             for row in rows:
@@ -333,7 +337,7 @@ class ReplicationDataHandler:
             try:
                 await make_deferred_yieldable(deferred)
             except defer.TimeoutError:
-                logger.error(
+                logger.warning(
                     "Timed out waiting for repl stream %r to reach %s (%s)"
                     "; currently at: %s",
                     stream_name,
