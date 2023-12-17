@@ -1,3 +1,159 @@
+# Synapse 1.98.0 (2023-12-12)
+
+Synapse 1.98.0 will be the last Synapse release in 2023; the regular release cadence will resume in January 2024.
+
+Synapse will soon be forked by Element under an AGPLv3.0 licence (with CLA, for
+proprietary dual licensing). You can read more about this here:
+
+ - https://matrix.org/blog/2023/11/06/future-of-synapse-dendrite/
+ - https://element.io/blog/element-to-adopt-agplv3/
+
+The Matrix.org Foundation copy of the project will be archived. Any changes needed
+by server administrators will be communicated via our usual announcements channels,
+but we are striving to make this as seamless as possible.
+
+
+No significant changes since 1.98.0rc1.
+
+
+
+# Synapse 1.98.0rc1 (2023-12-05)
+
+### Features
+
+- Synapse now declares support for Matrix v1.7, v1.8, and v1.9. ([\#16707](https://github.com/matrix-org/synapse/issues/16707))
+- Add `on_user_login` [module API](https://matrix-org.github.io/synapse/latest/modules/writing_a_module.html) callback for when a user logs in. ([\#15207](https://github.com/matrix-org/synapse/issues/15207))
+- Support [MSC4069: Inhibit profile propagation](https://github.com/matrix-org/matrix-spec-proposals/pull/4069). ([\#16636](https://github.com/matrix-org/synapse/issues/16636))
+- Restore tracking of requests and monthly active users when delegating authentication via [MSC3861](https://github.com/matrix-org/synapse/pull/16672) to an OIDC provider. ([\#16672](https://github.com/matrix-org/synapse/issues/16672))
+- Add an autojoin setting for server notices rooms, so users may be joined directly instead of receiving an invite. ([\#16699](https://github.com/matrix-org/synapse/issues/16699))
+- Follow redirects when downloading media over federation (per [MSC3860](https://github.com/matrix-org/matrix-spec-proposals/pull/3860)). ([\#16701](https://github.com/matrix-org/synapse/issues/16701))
+
+### Bugfixes
+
+- Enable refreshable tokens on the admin registration endpoint. ([\#16642](https://github.com/matrix-org/synapse/issues/16642))
+- Consistently bypass rate limits when using the server notice admin API. ([\#16670](https://github.com/matrix-org/synapse/issues/16670))
+- Fix a bug introduced in Synapse 1.7.2 where rooms whose power levels lacked an `events` field could not be upgraded. ([\#16725](https://github.com/matrix-org/synapse/issues/16725))
+- Fix `GET /_synapse/admin/v1/federation/destinations` [admin API](https://matrix-org.github.io/synapse/latest/usage/administration/admin_api/index.html) returning null (instead of 0) for `retry_last_ts` and `retry_interval`. ([\#16729](https://github.com/matrix-org/synapse/issues/16729))
+
+### Improved Documentation
+
+- Add schema rollback information to documentation. ([\#16661](https://github.com/matrix-org/synapse/issues/16661))
+- Fix poetry version typo in the [contributors' guide](https://matrix-org.github.io/synapse/latest/development/contributing_guide.html). ([\#16695](https://github.com/matrix-org/synapse/issues/16695))
+- Switch the example UNIX socket paths to `/run`. Add HAProxy example configuration for UNIX sockets. ([\#16700](https://github.com/matrix-org/synapse/issues/16700))
+- Add documentation for how to validate the configuration file with `synapse.config` script. ([\#16714](https://github.com/matrix-org/synapse/issues/16714))
+
+### Internal Changes
+
+- Clean-up unused tables. ([\#16522](https://github.com/matrix-org/synapse/issues/16522))
+- Reduce a little database load while processing state auth chains. ([\#16552](https://github.com/matrix-org/synapse/issues/16552))
+- Reduce database load of pruning old `user_ips`. ([\#16667](https://github.com/matrix-org/synapse/issues/16667))
+- Reduce DB load when forget on leave setting is disabled. ([\#16668](https://github.com/matrix-org/synapse/issues/16668))
+- Ignore `encryption_enabled_by_default_for_room_type` setting when creating server notices room, since the notices will be send unencrypted anyway. ([\#16677](https://github.com/matrix-org/synapse/issues/16677))
+- Correctly read the to-device stream ID on startup using SQLite. ([\#16682](https://github.com/matrix-org/synapse/issues/16682))
+- Reoranganise test files. ([\#16684](https://github.com/matrix-org/synapse/issues/16684))
+- Remove old full schema dumps which are no longer used. ([\#16697](https://github.com/matrix-org/synapse/issues/16697))
+- Raise poetry-core upper bound to <=1.8.1. This allows contributors to import Synapse after `poetry install`ing with Poetry 1.6 and above. Contributed by Mo Balaa. ([\#16702](https://github.com/matrix-org/synapse/issues/16702))
+- Add a workflow to try and automatically fixup linting in a PR. ([\#16704](https://github.com/matrix-org/synapse/issues/16704))
+
+
+### Updates to locked dependencies
+
+* Bump cryptography from 41.0.5 to 41.0.6. ([\#16703](https://github.com/matrix-org/synapse/issues/16703))
+* Bump cryptography from 41.0.6 to 41.0.7. ([\#16721](https://github.com/matrix-org/synapse/issues/16721))
+* Bump idna from 3.4 to 3.6. ([\#16720](https://github.com/matrix-org/synapse/issues/16720))
+* Bump jsonschema from 4.19.1 to 4.20.0. ([\#16692](https://github.com/matrix-org/synapse/issues/16692))
+* Bump matrix-org/netlify-pr-preview from 2 to 3. ([\#16719](https://github.com/matrix-org/synapse/issues/16719))
+* Bump phonenumbers from 8.13.23 to 8.13.26. ([\#16722](https://github.com/matrix-org/synapse/issues/16722))
+* Bump prometheus-client from 0.18.0 to 0.19.0. ([\#16691](https://github.com/matrix-org/synapse/issues/16691))
+* Bump pyasn1 from 0.5.0 to 0.5.1. ([\#16689](https://github.com/matrix-org/synapse/issues/16689))
+* Bump pydantic from 2.4.2 to 2.5.1. ([\#16663](https://github.com/matrix-org/synapse/issues/16663))
+* Bump pyo3 (0.19.2→0.20.0), pythonize (0.19.0→0.20.0) and pyo3-log (0.8.1→0.9.0). ([\#16673](https://github.com/matrix-org/synapse/issues/16673))
+* Bump pyopenssl from 23.2.0 to 23.3.0. ([\#16662](https://github.com/matrix-org/synapse/issues/16662))
+* Bump ruff from 0.1.4 to 0.1.6. ([\#16690](https://github.com/matrix-org/synapse/issues/16690))
+* Bump sentry-sdk from 1.32.0 to 1.35.0. ([\#16666](https://github.com/matrix-org/synapse/issues/16666))
+* Bump serde from 1.0.192 to 1.0.193. ([\#16693](https://github.com/matrix-org/synapse/issues/16693))
+* Bump sphinx-autodoc2 from 0.4.2 to 0.5.0. ([\#16723](https://github.com/matrix-org/synapse/issues/16723))
+* Bump types-jsonschema from 4.19.0.4 to 4.20.0.0. ([\#16724](https://github.com/matrix-org/synapse/issues/16724))
+* Bump types-pillow from 10.1.0.0 to 10.1.0.2. ([\#16664](https://github.com/matrix-org/synapse/issues/16664))
+* Bump types-psycopg2 from 2.9.21.15 to 2.9.21.16. ([\#16665](https://github.com/matrix-org/synapse/issues/16665))
+* Bump types-setuptools from 68.2.0.0 to 68.2.0.2. ([\#16688](https://github.com/matrix-org/synapse/issues/16688))
+
+# Synapse 1.97.0 (2023-11-28)
+
+Synapse will soon be forked by Element under an AGPLv3.0 licence (with CLA, for
+proprietary dual licensing). You can read more about this here:
+
+ - https://matrix.org/blog/2023/11/06/future-of-synapse-dendrite/
+ - https://element.io/blog/element-to-adopt-agplv3/
+
+The Matrix.org Foundation copy of the project will be archived. Any changes needed
+by server administrators will be communicated via our usual announcements channels,
+but we are striving to make this as seamless as possible.
+
+
+No significant changes since 1.97.0rc1.
+
+
+# Synapse 1.97.0rc1 (2023-11-21)
+
+### Features
+
+- Add support for asynchronous uploads as defined by [MSC2246](https://github.com/matrix-org/matrix-spec-proposals/pull/2246). Contributed by @sumnerevans at @beeper. ([\#15503](https://github.com/matrix-org/synapse/issues/15503))
+- Improve the performance of some operations in multi-worker deployments. ([\#16613](https://github.com/matrix-org/synapse/issues/16613), [\#16616](https://github.com/matrix-org/synapse/issues/16616))
+
+### Bugfixes
+
+- Fix a long-standing bug where some queries updated the same row twice. Introduced in Synapse 1.57.0. ([\#16609](https://github.com/matrix-org/synapse/issues/16609))
+- Fix a long-standing bug where Synapse would not unbind third-party identifiers for Application Service users when deactivated and would not emit a compliant response. ([\#16617](https://github.com/matrix-org/synapse/issues/16617))
+- Fix sending out of order `POSITION` over replication, causing additional database load. ([\#16639](https://github.com/matrix-org/synapse/issues/16639))
+
+### Improved Documentation
+
+- Note that the option [`outbound_federation_restricted_to`](https://matrix-org.github.io/synapse/latest/usage/configuration/config_documentation.html#outbound_federation_restricted_to) was added in Synapse 1.89.0, and fix a nearby formatting error. ([\#16628](https://github.com/matrix-org/synapse/issues/16628))
+- Update parameter information for the `/timestamp_to_event` admin API. ([\#16631](https://github.com/matrix-org/synapse/issues/16631))
+- Provide an example for a common encrypted media response from the admin user media API and mention possible null values. ([\#16654](https://github.com/matrix-org/synapse/issues/16654))
+
+### Internal Changes
+
+- Remove whole table locks on push rule modifications. Contributed by Nick @ Beeper (@fizzadar). ([\#16051](https://github.com/matrix-org/synapse/issues/16051))
+- Support reactor tick timings on more types of event loops. ([\#16532](https://github.com/matrix-org/synapse/issues/16532))
+- Improve type hints. ([\#16564](https://github.com/matrix-org/synapse/issues/16564), [\#16611](https://github.com/matrix-org/synapse/issues/16611), [\#16612](https://github.com/matrix-org/synapse/issues/16612))
+- Avoid executing no-op queries. ([\#16583](https://github.com/matrix-org/synapse/issues/16583))
+- Simplify persistence code to be per-room. ([\#16584](https://github.com/matrix-org/synapse/issues/16584))
+- Use standard SQL helpers in persistence code. ([\#16585](https://github.com/matrix-org/synapse/issues/16585))
+- Avoid updating the stream cache unnecessarily. ([\#16586](https://github.com/matrix-org/synapse/issues/16586))
+- Improve performance when using opentracing. ([\#16589](https://github.com/matrix-org/synapse/issues/16589))
+- Run push rule evaluator setup in parallel. ([\#16590](https://github.com/matrix-org/synapse/issues/16590))
+- Improve tests of the SQL generator. ([\#16596](https://github.com/matrix-org/synapse/issues/16596))
+- Use more generic database methods. ([\#16615](https://github.com/matrix-org/synapse/issues/16615))
+- Use `dbname` instead of the deprecated `database` connection parameter for psycopg2. ([\#16618](https://github.com/matrix-org/synapse/issues/16618))
+- Add an internal [Admin API endpoint](https://matrix-org.github.io/synapse/v1.97/usage/configuration/config_documentation.html#allow-replacing-master-cross-signing-key-without-user-interactive-auth) to temporarily grant the ability to update an existing cross-signing key without UIA. ([\#16634](https://github.com/matrix-org/synapse/issues/16634))
+- Improve references to GitHub issues. ([\#16637](https://github.com/matrix-org/synapse/issues/16637), [\#16638](https://github.com/matrix-org/synapse/issues/16638))
+- More efficiently handle no-op `POSITION` over replication. ([\#16640](https://github.com/matrix-org/synapse/issues/16640), [\#16655](https://github.com/matrix-org/synapse/issues/16655))
+- Speed up deleting of device messages when deleting a device. ([\#16643](https://github.com/matrix-org/synapse/issues/16643))
+- Speed up persisting large number of outliers. ([\#16649](https://github.com/matrix-org/synapse/issues/16649))
+- Reduce max concurrency of background tasks, reducing potential max DB load. ([\#16656](https://github.com/matrix-org/synapse/issues/16656), [\#16660](https://github.com/matrix-org/synapse/issues/16660))
+- Speed up purge room by adding an index to `event_push_summary`. ([\#16657](https://github.com/matrix-org/synapse/issues/16657))
+
+
+
+### Updates to locked dependencies
+
+* Bump prometheus-client from 0.17.1 to 0.18.0. ([\#16626](https://github.com/matrix-org/synapse/issues/16626))
+* Bump pyicu from 2.11 to 2.12. ([\#16603](https://github.com/matrix-org/synapse/issues/16603))
+* Bump requests-toolbelt from 0.10.1 to 1.0.0. ([\#16659](https://github.com/matrix-org/synapse/issues/16659))
+* Bump ruff from 0.0.292 to 0.1.4. ([\#16600](https://github.com/matrix-org/synapse/issues/16600))
+* Bump serde from 1.0.190 to 1.0.192. ([\#16627](https://github.com/matrix-org/synapse/issues/16627))
+* Bump serde_json from 1.0.107 to 1.0.108. ([\#16604](https://github.com/matrix-org/synapse/issues/16604))
+* Bump setuptools-rust from 1.8.0 to 1.8.1. ([\#16601](https://github.com/matrix-org/synapse/issues/16601))
+* Bump towncrier from 23.6.0 to 23.11.0. ([\#16622](https://github.com/matrix-org/synapse/issues/16622))
+* Bump treq from 22.2.0 to 23.11.0. ([\#16623](https://github.com/matrix-org/synapse/issues/16623))
+* Bump twisted from 23.8.0 to 23.10.0. ([\#16588](https://github.com/matrix-org/synapse/issues/16588))
+* Bump types-bleach from 6.1.0.0 to 6.1.0.1. ([\#16624](https://github.com/matrix-org/synapse/issues/16624))
+* Bump types-jsonschema from 4.19.0.3 to 4.19.0.4. ([\#16599](https://github.com/matrix-org/synapse/issues/16599))
+* Bump types-pyopenssl from 23.2.0.2 to 23.3.0.0. ([\#16625](https://github.com/matrix-org/synapse/issues/16625))
+* Bump types-pyyaml from 6.0.12.11 to 6.0.12.12. ([\#16602](https://github.com/matrix-org/synapse/issues/16602))
+
 # Synapse 1.96.1 (2023-11-17)
 
 Synapse will soon be forked by Element under an AGPLv3.0 licence (with CLA, for

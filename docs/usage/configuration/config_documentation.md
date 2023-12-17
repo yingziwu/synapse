@@ -33,6 +33,23 @@ In addition, configuration options referring to size use the following suffixes:
 For example, setting `max_avatar_size: 10M` means that Synapse will not accept files larger than 10,485,760 bytes
 for a user avatar.
 
+## Config Validation
+
+The configuration file can be validated with the following command:
+```bash
+python -m synapse.config read <config key to print> -c <path to config>
+```
+
+To validate the entire file, omit `read <config key to print>`:
+```bash
+python -m synapse.config -c <path to config>
+```
+
+To see how to set other options, check the help reference:
+```bash
+python -m synapse.config --help
+```
+
 ### YAML
 The configuration file is a [YAML](https://yaml.org/) file, which means that certain syntax rules
 apply if you want your config file to be read properly. A few helpful things to know:
@@ -566,7 +583,7 @@ listeners:
   # Note that x_forwarded will default to true, when using a UNIX socket. Please see
   # https://matrix-org.github.io/synapse/latest/reverse_proxy.html.
   #
-  - path: /var/run/synapse/main_public.sock
+  - path: /run/synapse/main_public.sock
     type: http
     resources:
       - names: [client, federation]
@@ -1447,7 +1464,7 @@ database:
   args:
     user: synapse_user
     password: secretpassword
-    database: synapse
+    dbname: synapse
     host: localhost
     port: 5432
     cp_min: 5
@@ -1526,7 +1543,7 @@ databases:
     args:
       user: synapse_user
       password: secretpassword
-      database: synapse_main
+      dbname: synapse_main
       host: localhost
       port: 5432
       cp_min: 5
@@ -1539,7 +1556,7 @@ databases:
     args:
       user: synapse_user
       password: secretpassword
-      database: synapse_state
+      dbname: synapse_state
       host: localhost
       port: 5432
       cp_min: 5
@@ -1753,6 +1770,19 @@ rc_third_party_invite:
   burst_count: 10
 ```
 ---
+### `rc_media_create`
+
+This option ratelimits creation of MXC URIs via the `/_matrix/media/v1/create`
+endpoint based on the account that's creating the media. Defaults to
+`per_second: 10`, `burst_count: 50`.
+
+Example configuration:
+```yaml
+rc_media_create:
+  per_second: 10
+  burst_count: 50
+```
+---
 ### `rc_federation`
 
 Defines limits on federation requests.
@@ -1812,6 +1842,27 @@ Directory where uploaded images and attachments are stored.
 Example configuration:
 ```yaml
 media_store_path: "DATADIR/media_store"
+```
+---
+### `max_pending_media_uploads`
+
+How many *pending media uploads* can a given user have? A pending media upload
+is a created MXC URI that (a) is not expired (the `unused_expires_at` timestamp
+has not passed) and (b) the media has not yet been uploaded for. Defaults to 5.
+
+Example configuration:
+```yaml
+max_pending_media_uploads: 5
+```
+---
+### `unused_expiration_time`
+
+How long to wait in milliseconds before expiring created media IDs. Defaults to
+"24h"
+
+Example configuration:
+```yaml
+unused_expiration_time: "1h"
 ```
 ---
 ### `media_storage_providers`
@@ -3781,6 +3832,8 @@ Sub-options for this setting include:
 * `system_mxid_display_name`: set the display name of the "notices" user
 * `system_mxid_avatar_url`: set the avatar for the "notices" user
 * `room_name`: set the room name of the server notices room
+* `auto_join`: boolean. If true, the user will be automatically joined to the room instead of being invited.
+  Defaults to false. _Added in Synapse 1.98.0._
 
 Example configuration:
 ```yaml
@@ -3789,6 +3842,7 @@ server_notices:
   system_mxid_display_name: "Server Notices"
   system_mxid_avatar_url: "mxc://server.com/oumMVlgDnLYFaPVkExemNVVZ"
   room_name: "Server Notices"
+  auto_join: true
 ```
 ---
 ### `enable_room_list_search`
@@ -4181,9 +4235,9 @@ Example configuration(#2, for UNIX sockets):
 ```yaml
 instance_map:
   main:
-    path: /var/run/synapse/main_replication.sock
+    path: /run/synapse/main_replication.sock
   worker1:
-    path: /var/run/synapse/worker1_replication.sock
+    path: /run/synapse/worker1_replication.sock
 ```
 ---
 ### `stream_writers`
@@ -4219,6 +4273,9 @@ outbound_federation_restricted_to:
 Also see the [worker
 documentation](../../workers.md#restrict-outbound-federation-traffic-to-a-specific-set-of-workers)
 for more info.
+
+_Added in Synapse 1.89.0._
+
 ---
 ### `run_background_tasks_on`
 
@@ -4366,13 +4423,13 @@ Example configuration(#2, using UNIX sockets with a `replication` listener):
 ```yaml
 worker_listeners:
   - type: http
-    path: /var/run/synapse/worker_public.sock
-    resources:
-      - names: [client, federation]
-  - type: http
-    path: /var/run/synapse/worker_replication.sock
+    path: /run/synapse/worker_replication.sock
     resources:
       - names: [replication]
+  - type: http
+    path: /run/synapse/worker_public.sock
+    resources:
+      - names: [client, federation]
 ```
 ---
 ### `worker_manhole`

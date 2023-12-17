@@ -13,7 +13,7 @@
 # limitations under the License.
 import logging
 import random
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Optional, Union
 
 from synapse.api.errors import (
     AuthError,
@@ -23,6 +23,7 @@ from synapse.api.errors import (
     StoreError,
     SynapseError,
 )
+from synapse.storage.databases.main.media_repository import LocalMedia, RemoteMedia
 from synapse.types import JsonDict, Requester, UserID, create_requester
 from synapse.util.caches.descriptors import cached
 from synapse.util.stringutils import parse_and_validate_mxc_uri
@@ -128,6 +129,7 @@ class ProfileHandler:
         new_displayname: str,
         by_admin: bool = False,
         deactivation: bool = False,
+        propagate: bool = True,
     ) -> None:
         """Set the displayname of a user
 
@@ -137,6 +139,7 @@ class ProfileHandler:
             new_displayname: The displayname to give this user.
             by_admin: Whether this change was made by an administrator.
             deactivation: Whether this change was made while deactivating the user.
+            propagate: Whether this change also applies to the user's membership events.
         """
         if not self.hs.is_mine(target_user):
             raise SynapseError(400, "User is not hosted on this homeserver")
@@ -187,7 +190,8 @@ class ProfileHandler:
             target_user.to_string(), profile, by_admin, deactivation
         )
 
-        await self._update_join_states(requester, target_user)
+        if propagate:
+            await self._update_join_states(requester, target_user)
 
     async def get_avatar_url(self, target_user: UserID) -> Optional[str]:
         if self.hs.is_mine(target_user):
@@ -220,6 +224,7 @@ class ProfileHandler:
         new_avatar_url: str,
         by_admin: bool = False,
         deactivation: bool = False,
+        propagate: bool = True,
     ) -> None:
         """Set a new avatar URL for a user.
 
@@ -229,6 +234,7 @@ class ProfileHandler:
             new_avatar_url: The avatar URL to give this user.
             by_admin: Whether this change was made by an administrator.
             deactivation: Whether this change was made while deactivating the user.
+            propagate: Whether this change also applies to the user's membership events.
         """
         if not self.hs.is_mine(target_user):
             raise SynapseError(400, "User is not hosted on this homeserver")
@@ -277,7 +283,8 @@ class ProfileHandler:
             target_user.to_string(), profile, by_admin, deactivation
         )
 
-        await self._update_join_states(requester, target_user)
+        if propagate:
+            await self._update_join_states(requester, target_user)
 
     @cached()
     async def check_avatar_size_and_mime_type(self, mxc: str) -> bool:
@@ -306,7 +313,9 @@ class ProfileHandler:
             server_name = host
 
         if self._is_mine_server_name(server_name):
-            media_info = await self.store.get_local_media(media_id)
+            media_info: Optional[
+                Union[LocalMedia, RemoteMedia]
+            ] = await self.store.get_local_media(media_id)
         else:
             media_info = await self.store.get_cached_remote_media(server_name, media_id)
 
@@ -322,12 +331,12 @@ class ProfileHandler:
 
         if self.max_avatar_size:
             # Ensure avatar does not exceed max allowed avatar size
-            if media_info["media_length"] > self.max_avatar_size:
+            if media_info.media_length > self.max_avatar_size:
                 logger.warning(
                     "Forbidding avatar change to %s: %d bytes is above the allowed size "
                     "limit",
                     mxc,
-                    media_info["media_length"],
+                    media_info.media_length,
                 )
                 return False
 
@@ -335,12 +344,12 @@ class ProfileHandler:
             # Ensure the avatar's file type is allowed
             if (
                 self.allowed_avatar_mimetypes
-                and media_info["media_type"] not in self.allowed_avatar_mimetypes
+                and media_info.media_type not in self.allowed_avatar_mimetypes
             ):
                 logger.warning(
                     "Forbidding avatar change to %s: mimetype %s not allowed",
                     mxc,
-                    media_info["media_type"],
+                    media_info.media_type,
                 )
                 return False
 

@@ -1260,7 +1260,8 @@ class RoomMemberHandler(metaclass=abc.ABCMeta):
         # Add new room to the room directory if the old room was there
         # Remove old room from the room directory
         old_room = await self.store.get_room(old_room_id)
-        if old_room is not None and old_room["is_public"]:
+        # If the old room exists and is public.
+        if old_room is not None and old_room[0]:
             await self.store.set_room_is_public(old_room_id, False)
             await self.store.set_room_is_public(room_id, True)
 
@@ -2110,9 +2111,14 @@ class RoomForgetterHandler(StateDeltasHandler):
                 self.pos = room_max_stream_ordering
 
         if not self._hs.config.room.forget_on_leave:
-            # Update the processing position, so that if the server admin turns the
-            # feature on at a later date, we don't decide to forget every room that
-            # has ever been left in the past.
+            # Update the processing position, so that if the server admin turns
+            # the feature on at a later date, we don't decide to forget every
+            # room that has ever been left in the past.
+            #
+            # We wait for a short time so that we don't "tight" loop just
+            # keeping the table up to date.
+            await self._clock.sleep(0.5)
+
             self.pos = self._store.get_room_max_stream_ordering()
             await self._store.update_room_forgetter_stream_pos(self.pos)
             return
