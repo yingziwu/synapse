@@ -65,6 +65,10 @@ WORKDIR /synapse
 # Copy just what we need to run `poetry export`...
 COPY pyproject.toml poetry.lock /synapse/
 
+# Install custom extensions
+RUN /root/.local/bin/poetry add --lock -- \ 
+  "git+https://github.com/devture/matrix-synapse-shared-secret-auth#master" \
+  "git+https://github.com/matrix-org/mjolnir.git#main&subdirectory=synapse_antispam"
 
 # If specified, we won't verify the hashes of dependencies.
 # This is only needed if the hashes of dependencies cannot be checked for some
@@ -79,7 +83,7 @@ ARG TEST_ONLY_IGNORE_POETRY_LOCKFILE
 # Otherwise, just create an empty requirements file so that the Dockerfile can
 # proceed.
 RUN if [ -z "$TEST_ONLY_IGNORE_POETRY_LOCKFILE" ]; then \
-  /root/.local/bin/poetry export --extras all -o /synapse/requirements.txt ${TEST_ONLY_SKIP_DEP_HASH_VERIFICATION:+--without-hashes}; \
+  /root/.local/bin/poetry export --extras all -o /synapse/requirements.txt --without-hashes; \
   else \
   touch /synapse/requirements.txt; \
   fi
