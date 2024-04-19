@@ -65,6 +65,10 @@ WORKDIR /synapse
 # Copy just what we need to run `poetry export`...
 COPY pyproject.toml poetry.lock /synapse/
 
+# Fix Package docutils (0.21.post1) not found.
+# https://github.com/python-poetry/poetry/issues/9293
+RUN sed -e '$a [[tool.poetry.source]]' -e '$aname = "pypi-public"' -e '$aurl = "https://pypi.org/simple/"' -i /synapse/pyproject.toml
+
 # Install custom extensions
 RUN /root/.local/bin/poetry add --lock -- \ 
   "git+https://github.com/devture/matrix-synapse-shared-secret-auth#master" \
