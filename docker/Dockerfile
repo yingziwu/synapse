@@ -40,11 +40,6 @@ COPY pyproject.toml poetry.lock /synapse/
 # https://github.com/python-poetry/poetry/issues/9293
 RUN sed -e '$a [[tool.poetry.source]]' -e '$aname = "pypi-public"' -e '$aurl = "https://pypi.org/simple/"' -i /synapse/pyproject.toml
 
-# Install custom extensions
-RUN /root/.local/bin/poetry add --lock -- \ 
-  "git+https://github.com/devture/matrix-synapse-shared-secret-auth#master" \
-  "git+https://github.com/matrix-org/mjolnir.git#main&subdirectory=synapse_antispam"
-
 # If specified, we won't verify the hashes of dependencies.
 # This is only needed if the hashes of dependencies cannot be checked for some
 # reason, such as when a git repository is used directly as a dependency.
@@ -62,6 +57,14 @@ ENV UV_LINK_MODE=copy
 # Otherwise, just create an empty requirements file so that the Dockerfile can
 # proceed.
 ARG POETRY_VERSION
+
+# Install custom extensions
+RUN --mount=type=cache,target=/root/.cache/uv \
+  uvx --with poetry-plugin-export==1.8.0 \
+    poetry@${POETRY_VERSION} add --lock -- \ 
+    "git+https://github.com/devture/matrix-synapse-shared-secret-auth#master" \
+    "git+https://github.com/matrix-org/mjolnir.git#main&subdirectory=synapse_antispam"
+
 RUN --mount=type=cache,target=/root/.cache/uv \
   if [ -z "$TEST_ONLY_IGNORE_POETRY_LOCKFILE" ]; then \
     uvx --with poetry-plugin-export==1.8.0 \
